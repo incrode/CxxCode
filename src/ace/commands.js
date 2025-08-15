@@ -1,5 +1,5 @@
-import prompt from "dialogs/prompt";
 import fsOperation from "fileSystem";
+import prompt from "dialogs/prompt";
 import actions from "handlers/quickTools";
 import keyBindings from "lib/keyBindings";
 import settings from "lib/settings";
@@ -322,6 +322,30 @@ const commands = [
 		description: "Copy Device info",
 		exec() {
 			acode.exec("copy-device-info");
+		},
+		readOnly: true,
+	},
+	{
+		name: "changeAppTheme",
+		description: "Change App Theme",
+		exec() {
+			acode.exec("change-app-theme");
+		},
+		readOnly: true,
+	},
+	{
+		name: "changeEditorTheme",
+		description: "Change Editor Theme",
+		exec() {
+			acode.exec("change-editor-theme");
+		},
+		readOnly: true,
+	},
+	{
+		name: "openTerminal",
+		description: "Open Terminal",
+		exec() {
+			acode.exec("new-terminal");
 		},
 		readOnly: true,
 	},

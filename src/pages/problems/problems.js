@@ -11,8 +11,9 @@ export default function Problems() {
 	const $content = <div id="problems"></div>;
 
 	files.forEach((file) => {
+		if (file.type !== "editor") return;
 		/**@type {[]} */
-		const annotations = file.session.getAnnotations();
+		const annotations = file.session?.getAnnotations();
 		if (!annotations.length) return;
 
 		$content.append(
@@ -58,7 +59,7 @@ export default function Problems() {
 	});
 
 	$content.addEventListener("click", clickHandler);
-	$page.content = $content;
+	$page.body = $content;
 	app.append($page);
 	helpers.showAd();
 

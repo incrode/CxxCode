@@ -1,15 +1,21 @@
 import "./style.scss";
 
+import fsOperation from "fileSystem";
+import ajax from "@deadlyjack/ajax";
 import collapsableList from "components/collapsableList";
 import Sidebar from "components/sidebar";
+import alert from "dialogs/alert";
+import prompt from "dialogs/prompt";
 import select from "dialogs/select";
-import fsOperation from "fileSystem";
+import purchaseListener from "handlers/purchase";
 import constants from "lib/constants";
 import InstallState from "lib/installState";
+import loadPlugin from "lib/loadPlugin";
 import settings from "lib/settings";
+import FileBrowser from "pages/fileBrowser";
 import plugin from "pages/plugin";
-import Url from "utils/Url";
 import helpers from "utils/helpers";
+import Url from "utils/Url";
 
 /** @type {HTMLElement} */
 let $installed = null;
@@ -24,15 +30,24 @@ const LIMIT = 50;
 let currentPage = 1;
 let hasMore = true;
 let isLoading = false;
+let currentFilter = null;
+let filterCurrentPage = 1;
+let filterHasMore = true;
+let isFilterLoading = false;
 
 const $header = (
 	<div className="header">
-		<span className="title">
-			{strings["plugins"]}
-			<button className="icon-button" onclick={filterPlugins}>
-				<span className="icon tune"></span>
-			</button>
-		</span>
+		<div className="title">
+			<span>{strings.plugins}</span>
+			<div className="actions">
+				<button type="button" className="icon-button" onclick={filterPlugins}>
+					<span className="icon tune" />
+				</button>
+				<button type="button" className="icon-button" onclick={addSource}>
+					<span className="icon add" />
+				</button>
+			</div>
+		</div>
 		<input
 			oninput={searchPlugin}
 			type="search"
@@ -48,7 +63,7 @@ let installedPlugins = [];
 export default [
 	"extension", // icon
 	"extensions", // id
-	strings["plugins"], // title
+	strings.plugins, // title
 	initApp, // init function
 	false, // prepend
 	onSelected, // onSelected function
@@ -60,9 +75,9 @@ export default [
  */
 function onSelected(el) {
 	const $scrollableLists = container.getAll(":scope .scroll[data-scroll-top]");
-	$scrollableLists.forEach(($el) => {
+	for (const $el of $scrollableLists) {
 		$el.scrollTop = $el.dataset.scrollTop;
-	});
+	}
 }
 
 /**
@@ -75,21 +90,21 @@ function initApp(el) {
 	container.content = $header;
 
 	if (!$searchResult) {
-		$searchResult = <ul className="list search-result scroll"></ul>;
+		$searchResult = <ul className="list search-result scroll" />;
 		container.append($searchResult);
 	}
 
 	if (!$explore) {
-		$explore = collapsableList(strings["explore"]);
+		$explore = collapsableList(strings.explore);
 		$explore.ontoggle = loadExplore;
 		$explore.$ul.onscroll = handleScroll;
 		container.append($explore);
 	}
 
 	if (!$installed) {
-		$installed = collapsableList(strings["installed"]);
+		$installed = collapsableList(strings.installed);
 		$installed.ontoggle = loadInstalled;
-		$installed.expand();
+		//$installed.expand();
 		container.append($installed);
 	}
 
@@ -103,6 +118,16 @@ async function handleScroll(e) {
 
 	if (scrollTop + clientHeight >= scrollHeight - 50) {
 		await loadMorePlugins();
+	}
+}
+
+async function handleFilterScroll(e) {
+	if (isFilterLoading || !filterHasMore || !currentFilter) return;
+
+	const { scrollTop, scrollHeight, clientHeight } = e.target;
+
+	if (scrollTop + clientHeight >= scrollHeight - 50) {
+		await loadFilteredPlugins(currentFilter, false);
 	}
 }
 
@@ -134,14 +159,52 @@ async function loadMorePlugins() {
 	}
 }
 
+async function loadFilteredPlugins(filterName, isInitial = false) {
+	if (isFilterLoading || !filterHasMore) return;
+
+	try {
+		isFilterLoading = true;
+
+		const plugins = await getFilteredPlugins(filterName, filterCurrentPage);
+
+		if (plugins.length < LIMIT) {
+			filterHasMore = false;
+		}
+
+		installedPlugins = await listInstalledPlugins();
+		const pluginElements = plugins.map(ListItem);
+
+		if (isInitial) {
+			$searchResult.append(...pluginElements);
+		} else {
+			$searchResult.append(...pluginElements);
+		}
+
+		filterCurrentPage++;
+		updateHeight($searchResult);
+	} catch (error) {
+		window.log("error", "Error loading filtered plugins:");
+		window.log("error", error);
+	} finally {
+		isFilterLoading = false;
+	}
+}
+
 async function searchPlugin() {
 	clearTimeout(searchTimeout);
 	searchTimeout = setTimeout(async () => {
+		// Clear filter when searching
+		currentFilter = null;
+		filterCurrentPage = 1;
+		filterHasMore = true;
+		isFilterLoading = false;
+		$searchResult.onscroll = null;
+
 		$searchResult.content = "";
 		const status = helpers.checkAPIStatus();
 		if (!status) {
 			$searchResult.content = (
-				<span className="error">{strings["api_error"]}</span>
+				<span className="error">{strings.api_error}</span>
 			);
 			return;
 		}
@@ -160,7 +223,7 @@ async function searchPlugin() {
 			updateHeight($searchResult);
 		} catch (error) {
 			window.log("error", error);
-			$searchResult.content = <span className="error">{strings["error"]}</span>;
+			$searchResult.content = <span className="error">{strings.error}</span>;
 		} finally {
 			$searchResult.classList.remove("loading");
 		}
@@ -179,40 +242,88 @@ async function filterPlugins() {
 
 	$searchResult.content = "";
 	const filterParam = filterOptions[filterName];
+	currentFilter = filterParam;
+	filterCurrentPage = 1;
+	filterHasMore = true;
+	isFilterLoading = false;
 
 	try {
 		$searchResult.classList.add("loading");
-		const plugins = await getFilteredPlugins(filterParam);
 		const filterMessage = (
 			<div className="filter-message">
 				<span>
-					Filter for <strong>{filterName}</strong>
+					Filtered by <strong>{filterName}</strong>
 				</span>
 				<span
 					className="icon clearclose close-button"
 					data-action="clear-filter"
 					onclick={() => clearFilter()}
-				></span>
+				/>
 			</div>
 		);
-		$searchResult.content = [filterMessage, ...plugins.map(ListItem)];
+		$searchResult.content = [filterMessage];
+		$searchResult.onscroll = handleFilterScroll;
+		await loadFilteredPlugins(filterParam, true);
 		updateHeight($searchResult);
 
 		function clearFilter() {
+			currentFilter = null;
+			filterCurrentPage = 1;
+			filterHasMore = true;
+			isFilterLoading = false;
 			$searchResult.content = "";
+			$searchResult.onscroll = null;
 			updateHeight($searchResult);
 		}
 	} catch (error) {
 		window.log("error", "Error filtering plugins:");
 		window.log("error", error);
-		$searchResult.content = <span className="error">{strings["error"]}</span>;
+		$searchResult.content = <span className="error">{strings.error}</span>;
 	} finally {
 		$searchResult.classList.remove("loading");
 	}
 }
 
 async function clearFilter() {
+	currentFilter = null;
+	filterCurrentPage = 1;
+	filterHasMore = true;
+	isFilterLoading = false;
 	$searchResult.content = "";
+	$searchResult.onscroll = null;
+}
+
+async function addSource() {
+	const sourceOption = [
+		["remote", strings.remote],
+		["local", strings.local],
+	];
+	const sourceType = await select("Select Source", sourceOption);
+
+	if (!sourceType) return;
+	let source;
+	if (sourceType === "remote") {
+		source = await prompt("Enter plugin source", "https://", "url");
+	} else {
+		source = (await FileBrowser("file", "Select plugin source")).url;
+	}
+
+	if (!source) return;
+
+	try {
+		const { default: installPlugin } = await import("lib/installPlugin");
+		await installPlugin(source);
+		if (!$explore.collapsed) {
+			$explore.ontoggle();
+		}
+		if (!$installed.collapsed) {
+			$installed.ontoggle();
+		}
+	} catch (error) {
+		console.error(error);
+		window.toast(helpers.errorMessage(error));
+		addSource(sourceType, source);
+	}
 }
 
 async function loadInstalled() {
@@ -231,9 +342,7 @@ async function loadExplore() {
 
 	const status = helpers.checkAPIStatus();
 	if (!status) {
-		$explore.$ul.content = (
-			<span className="error">{strings["api_error"]}</span>
-		);
+		$explore.$ul.content = <span className="error">{strings.api_error}</span>;
 		return;
 	}
 
@@ -256,7 +365,7 @@ async function loadExplore() {
 		currentPage++;
 		updateHeight($explore);
 	} catch (error) {
-		$explore.$ul.content = <span className="error">{strings["error"]}</span>;
+		$explore.$ul.content = <span className="error">{strings.error}</span>;
 	} finally {
 		stopLoading($explore);
 	}
@@ -268,7 +377,7 @@ async function listInstalledPlugins() {
 			const id = Url.basename(item.url);
 			const url = Url.join(item.url, "plugin.json");
 			const plugin = await fsOperation(url).readFile("json");
-			const iconUrl = getLocalRes(id, "icon.png");
+			const iconUrl = getLocalRes(id, plugin.icon);
 			plugin.icon = await helpers.toInternalUri(iconUrl);
 			plugin.installed = true;
 			return plugin;
@@ -277,19 +386,22 @@ async function listInstalledPlugins() {
 	return plugins;
 }
 
-async function getFilteredPlugins(filterName) {
+async function getFilteredPlugins(filterName, page = 1) {
 	try {
 		let response;
 		if (filterName === "top_rated") {
-			response = await fetch(`${constants.API_BASE}/plugins?explore=random`);
+			response = await fetch(
+				`${constants.API_BASE}/plugins?explore=random&page=${page}&limit=${LIMIT}`,
+			);
 		} else {
 			response = await fetch(
-				`${constants.API_BASE}/plugin?orderBy=${filterName}`,
+				`${constants.API_BASE}/plugin?orderBy=${filterName}&page=${page}&limit=${LIMIT}`,
 			);
 		}
 		return await response.json();
 	} catch (error) {
 		window.log("error", error);
+		return [];
 	}
 }
 
@@ -339,29 +451,40 @@ function getLocalRes(id, name) {
 	return Url.join(PLUGIN_DIR, id, name);
 }
 
-function ListItem({ icon, name, id, version, downloads, installed }) {
+function ListItem({ icon, name, id, version, downloads, installed, source }) {
 	if (installed === undefined) {
 		installed = !!installedPlugins.find(({ id: _id }) => _id === id);
 	}
+	const disabledMap = settings.value.pluginsDisabled || {};
+	const enabled = disabledMap[id] !== true;
 	const $el = (
-		<div className="tile" data-plugin-id={id}>
-			<span className="icon" style={{ backgroundImage: `url(${icon})` }}></span>
+		<div
+			data-plugin-id={id}
+			data-plugin-enabled={enabled !== false}
+			className="tile"
+			style={enabled === false ? { opacity: 0.6 } : {}}
+		>
+			<span className="icon" style={{ backgroundImage: `url(${icon})` }} />
 			<span
 				className="text sub-text"
-				data-subtext={`v${version} • ${installed ? `${strings["installed"]}` : helpers.formatDownloadCount(downloads)}`}
+				data-subtext={`v${version} • ${installed ? `${strings.installed}` : helpers.formatDownloadCount(downloads)}`}
 			>
 				{name}
 			</span>
-			{installed ? (
-				<span
-					className="icon more_vert"
-					data-action="more-plugin-action"
-				></span>
-			) : (
-				<button className="install-btn" data-action="install-plugin">
-					<span className="icon file_downloadget_app"></span>
-				</button>
-			)}
+			{installed
+				? <>
+						{source
+							? <span className="icon replay" data-action="rebuild-plugin" />
+							: null}
+						<span className="icon more_vert" data-action="more-plugin-action" />
+					</>
+				: <button
+						type="button"
+						className="install-btn"
+						data-action="install-plugin"
+					>
+						<span className="icon file_downloadget_app" />
+					</button>}
 		</div>
 	);
 
@@ -372,12 +495,17 @@ function ListItem({ icon, name, id, version, downloads, installed }) {
 		const installPluginBtn = event.target.closest(
 			'[data-action="install-plugin"]',
 		);
+		const rebuildPluginBtn = event.target.closest(
+			'[data-action="rebuild-plugin"]',
+		);
 		if (morePluginActionButton) {
 			more_plugin_action(id, name);
 			return;
-		} else if (installPluginBtn) {
+		}
+		if (installPluginBtn) {
 			try {
-				let purchaseToken = null;
+				let purchaseToken;
+				let product;
 				const pluginUrl = Url.join(constants.API_BASE, `plugin/${id}`);
 				const remotePlugin = await fsOperation(pluginUrl)
 					.readFile("json")
@@ -385,32 +513,93 @@ function ListItem({ icon, name, id, version, downloads, installed }) {
 						throw new Error("Failed to fetch plugin details");
 					});
 
-				if (remotePlugin && Number.parseFloat(remotePlugin.price) > 0) {
-					try {
-						const [product] = await helpers.promisify(iap.getProducts, [
-							remotePlugin.sku,
-						]);
-						if (product) {
-							async function getPurchase(sku) {
-								const purchases = await helpers.promisify(iap.getPurchases);
-								const purchase = purchases.find((p) =>
-									p.productIds.includes(sku),
-								);
-								return purchase;
-							}
-							const purchase = await getPurchase(product.productId);
-							purchaseToken = purchase?.purchaseToken;
-						}
-					} catch (error) {
-						helpers.error(error);
-						throw new Error("Failed to validate purchase");
+				const isPaid = remotePlugin.price > 0;
+				if (isPaid) {
+					[product] = await helpers.promisify(iap.getProducts, [
+						remotePlugin.sku,
+					]);
+					if (product) {
+						const purchase = await getPurchase(product.productId);
+						purchaseToken = purchase?.purchaseToken;
+					}
+				}
+
+				if (isPaid && !purchaseToken) {
+					if (!product) throw new Error("Product not found");
+					const apiStatus = await helpers.checkAPIStatus();
+
+					if (!apiStatus) {
+						alert(strings.error, strings.api_error);
+						return;
+					}
+
+					iap.setPurchaseUpdatedListener(
+						...purchaseListener(onpurchase, onerror),
+					);
+					await helpers.promisify(iap.purchase, product.productId);
+
+					async function onpurchase(e) {
+						const purchase = await getPurchase(product.productId);
+						await ajax.post(Url.join(constants.API_BASE, "plugin/order"), {
+							data: {
+								id: remotePlugin.id,
+								token: purchase?.purchaseToken,
+								package: BuildInfo.packageName,
+							},
+						});
+						purchaseToken = purchase?.purchaseToken;
+					}
+
+					async function onerror(error) {
+						throw error;
 					}
 				}
 
 				const { default: installPlugin } = await import("lib/installPlugin");
-				await installPlugin(id, remotePlugin.name, purchaseToken);
-				window.toast(strings["success"], 3000);
-				$explore.ontoggle();
+				await installPlugin(
+					id,
+					remotePlugin.name,
+					purchaseToken ? purchaseToken : undefined,
+				);
+
+				const searchInput = container.querySelector('input[name="search-ext"]');
+				if (searchInput) {
+					searchInput.value = "";
+					$searchResult.content = "";
+					// Reset filter state when clearing search results
+					currentFilter = null;
+					filterCurrentPage = 1;
+					filterHasMore = true;
+					isFilterLoading = false;
+					$searchResult.onscroll = null;
+					updateHeight($searchResult);
+					$installed.expand();
+				}
+
+				window.toast(strings.success, 3000);
+				if (!$explore.collapsed) {
+					$explore.ontoggle();
+				}
+				if (!$installed.collapsed) {
+					$installed.ontoggle();
+				}
+
+				async function getPurchase(sku) {
+					const purchases = await helpers.promisify(iap.getPurchases);
+					const purchase = purchases.find((p) => p.productIds.includes(sku));
+					return purchase;
+				}
+			} catch (err) {
+				console.error(err);
+				window.toast(helpers.errorMessage(err), 3000);
+			}
+			return;
+		}
+		if (rebuildPluginBtn) {
+			try {
+				const { default: installPlugin } = await import("lib/installPlugin");
+				await installPlugin(source);
+				window.toast(strings.success, 3000);
 			} catch (err) {
 				console.error(err);
 				window.toast(helpers.errorMessage(err), 3000);
@@ -465,6 +654,22 @@ async function uninstall(id) {
 		]);
 		acode.unmountPlugin(id);
 
+		const searchInput = container.querySelector('input[name="search-ext"]');
+		if (searchInput) {
+			searchInput.value = "";
+			$searchResult.content = "";
+			// Reset filter state when clearing search results
+			currentFilter = null;
+			filterCurrentPage = 1;
+			filterHasMore = true;
+			isFilterLoading = false;
+			$searchResult.onscroll = null;
+			updateHeight($searchResult);
+			if ($installed.collapsed) {
+				$installed.expand();
+			}
+		}
+
 		// Show Ad If Its Free Version, interstitial Ad(iad) is loaded.
 		if (IS_FREE_VERSION && (await window.iad?.isLoaded())) {
 			window.iad.show();
@@ -475,14 +680,21 @@ async function uninstall(id) {
 }
 
 async function more_plugin_action(id, pluginName) {
-	let actions;
-	let pluginSettings = settings.uiSettings[`plugin-${id}`];
+	const disabledMap = settings.value.pluginsDisabled || {};
+	const enabled = disabledMap[id] !== true;
+	let actions = [];
+	const pluginSettings = settings.uiSettings[`plugin-${id}`];
+
 	if (pluginSettings) {
-		actions = [strings.settings, strings.uninstall];
-	} else {
-		actions = [strings.uninstall];
+		actions.push(strings.settings);
 	}
-	let action = await select("Action", actions);
+
+	actions.push(
+		enabled ? strings.disable || "Disable" : strings.enable || "Enable",
+	);
+
+	actions.push(strings.uninstall);
+	const action = await select("Action", actions);
 	if (!action) return;
 	switch (action) {
 		case strings.settings:
@@ -496,6 +708,66 @@ async function more_plugin_action(id, pluginName) {
 			}
 			if (!$installed.collapsed) {
 				$installed.ontoggle();
+			}
+			break;
+		case strings.disable || "Disable":
+		// fallthrough
+		case strings.enable || "Enable":
+			if (enabled) {
+				disabledMap[id] = true; // Disabling
+			} else {
+				delete disabledMap[id]; // Enabling
+			}
+
+			settings.update({ pluginsDisabled: disabledMap }, false);
+
+			// INFO: I don't know how to get all loaded plugins(not installed).
+			const choice = await select(
+				strings.info,
+				[
+					// { value: "reload_plugins", text: strings["reload_plugins"] || "Reload Plugins" },
+					{
+						value: "restart_app",
+						text: strings["restart_app"] || "Restart App",
+					},
+					{
+						value: "single",
+						text: enabled
+							? strings["disable_plugin"] || "Disable this Plugin"
+							: strings["enable_plugin"] || "Enable this Plugin",
+					},
+				],
+				{
+					default: "single",
+				},
+			);
+
+			// if (choice === "reload_plugins") {
+			// 	// Unmount all currently loaded plugins before reloading
+			// 	if (window.acode && typeof window.acode.getLoadedPluginIds === "function") {
+			// 		for (const pluginId of window.acode.getLoadedPluginIds()) {
+			// 			window.acode.unmountPlugin(pluginId);
+			// 		}
+			// 	}
+			// 	await window.loadPlugins?.();
+			// 	window.toast(strings.success);
+			// }
+			if (choice === "restart_app") {
+				location.reload();
+			} else if (choice === "single") {
+				if (enabled) {
+					window.acode.unmountPlugin(id);
+					window.toast(strings["plugin_disabled"] || "Plugin Disabled");
+				} else {
+					await loadPlugin(id);
+					window.toast(strings["plugin_enabled"] || "Plugin enabled");
+				}
+				if (!$explore.collapsed) {
+					$explore.ontoggle();
+				}
+				if (!$installed.collapsed) {
+					$installed.ontoggle();
+				}
 			}
 			break;
 	}

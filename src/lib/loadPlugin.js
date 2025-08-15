@@ -1,15 +1,28 @@
-import Page from "components/page";
 import fsOperation from "fileSystem";
-import Url from "utils/Url";
+import Page from "components/page";
 import helpers from "utils/helpers";
+import Url from "utils/Url";
 import actionStack from "./actionStack";
 
 export default async function loadPlugin(pluginId, justInstalled = false) {
 	const baseUrl = await helpers.toInternalUri(Url.join(PLUGIN_DIR, pluginId));
 	const cacheFile = Url.join(CACHE_STORAGE, pluginId);
 
+	const pluginJson = await fsOperation(
+		Url.join(PLUGIN_DIR, pluginId, "plugin.json"),
+	).readFile("json");
+
+	let mainUrl;
+	if (
+		await fsOperation(Url.join(PLUGIN_DIR, pluginId, pluginJson.main)).exists()
+	) {
+		mainUrl = Url.join(baseUrl, pluginJson.main);
+	} else {
+		mainUrl = Url.join(baseUrl, "main.js");
+	}
+
 	return new Promise((resolve, reject) => {
-		const $script = <script src={Url.join(baseUrl, "main.js")}></script>;
+		const $script = <script src={mainUrl}></script>;
 
 		$script.onerror = (error) => {
 			reject(

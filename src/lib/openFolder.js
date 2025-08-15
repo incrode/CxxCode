@@ -1,3 +1,5 @@
+import fsOperation from "fileSystem";
+import sidebarApps from "sidebarApps";
 import collapsableList from "components/collapsableList";
 import Sidebar from "components/sidebar";
 import tile from "components/tile";
@@ -7,12 +9,10 @@ import confirm from "dialogs/confirm";
 import prompt from "dialogs/prompt";
 import select from "dialogs/select";
 import escapeStringRegexp from "escape-string-regexp";
-import fsOperation from "fileSystem";
 import FileBrowser from "pages/fileBrowser";
-import sidebarApps from "sidebarApps";
+import helpers from "utils/helpers";
 import Path from "utils/Path";
 import Url from "utils/Url";
-import helpers from "utils/helpers";
 import constants from "./constants";
 import * as FileList from "./fileList";
 import openFile from "./openFile";
@@ -72,7 +72,6 @@ function openFolder(_path, opts = {}) {
 	}
 
 	const $root = collapsableList(title, "folder", {
-		tail: <Tail target={() => $root.$title} />,
 		allCaps: true,
 		ontoggle: () => expandList($root),
 	});
@@ -204,6 +203,11 @@ async function expandList($list) {
 			});
 	} catch (err) {
 		$list.collapse();
+		if (err?.includes("Invalid message length")) {
+			console.error(err);
+			toast("SFTP connection broken. Restart the app");
+			return;
+		}
 		helpers.error(err);
 	} finally {
 		stopLoading();
@@ -289,19 +293,21 @@ async function handleContextmenu(type, url, name, $target) {
 			options.push(INSTALL_PLUGIN);
 		}
 	} else if (helpers.isDir(type)) {
-		options = [
-			COPY,
-			CUT,
-			REMOVE,
-			RENAME,
-			PASTE,
-			NEW_FILE,
-			NEW_FOLDER,
-			OPEN_FOLDER,
-			INSERT_FILE,
-		];
+		options = [COPY, CUT, REMOVE, RENAME];
+
+		if (clipBoard.url != null) {
+			options.push(PASTE);
+		}
+
+		options.push(NEW_FILE, NEW_FOLDER, OPEN_FOLDER, INSERT_FILE);
 	} else if (type === "root") {
-		options = [PASTE, NEW_FILE, NEW_FOLDER, INSERT_FILE, CLOSE_FOLDER];
+		options = [];
+
+		if (clipBoard.url != null) {
+			options.push(PASTE);
+		}
+
+		options.push(NEW_FILE, NEW_FOLDER, INSERT_FILE, CLOSE_FOLDER);
 	}
 
 	if (clipBoard.action) options.push(CANCEL);
@@ -521,6 +527,32 @@ function execOperation(type, action, url, $target, name) {
 	}
 
 	async function paste() {
+		if (clipBoard.url == null) {
+			alert(strings.warning, "Nothing to paste");
+			return;
+		}
+
+		// Prevent pasting a folder into itself or its subdirectories
+		if (helpers.isDir(clipBoard.$el.dataset.type)) {
+			const sourceUrl = Url.parse(clipBoard.url).url;
+			const targetUrl = Url.parse(url).url;
+
+			// Check if trying to paste folder into itself
+			if (sourceUrl === targetUrl) {
+				alert(strings.warning, "Cannot paste a folder into itself");
+				return;
+			}
+
+			// Check if trying to paste folder into one of its subdirectories
+			if (
+				targetUrl.startsWith(sourceUrl + "/") ||
+				targetUrl.startsWith(sourceUrl + "\\")
+			) {
+				alert(strings.warning, "Cannot paste a folder into its subdirectory");
+				return;
+			}
+		}
+
 		let CASE = "";
 		const $src = clipBoard.$el;
 		const srcType = $src.dataset.type;
@@ -533,97 +565,155 @@ function execOperation(type, action, url, $target, name) {
 		CASE += $target.collapsed ? 1 : 0;
 
 		startLoading();
-		const fs = fsOperation(clipBoard.url);
-		let newUrl;
-		if (clipBoard.action === "cut") newUrl = await fs.moveTo(url);
-		else newUrl = await fs.copyTo(url);
-		const { name: newName } = await fsOperation(newUrl).stat();
-		stopLoading();
-		/**
-		 * CASES:
-		 * CASE 111: src is file and parent is collapsed where target is also collapsed
-		 * CASE 110: src is file and parent is collapsed where target is unclasped
-		 * CASE 101: src is file and parent is unclasped where target is collapsed
-		 * CASE 100: src is file and parent is unclasped where target is also unclasped
-		 * CASE 011: src is directory and parent is collapsed where target is also collapsed
-		 * CASE 001: src is directory and parent is unclasped where target is also collapsed
-		 * CASE 010: src is directory and parent is collapsed where target is also unclasped
-		 * CASE 000: src is directory and parent is unclasped where target is also unclasped
-		 */
+		try {
+			const fs = fsOperation(clipBoard.url);
+			const itemName = Url.basename(clipBoard.url);
+			const possibleConflictUrl = Url.join(url, itemName);
+			const doesExist = await fsOperation(possibleConflictUrl).exists();
+			if (doesExist) {
+				let confirmation = await confirm(
+					strings.warning,
+					strings["already exists"]
+						? strings["already exists"].replace("{name}", itemName)
+						: `"${itemName}" already exists in this location.`,
+				);
+				if (!confirmation) return;
+			}
+			let newUrl;
+			if (clipBoard.action === "cut") {
+				// Special handling for Termux SAF folders - move manually due to SAF limitations
+				if (
+					clipBoard.url.startsWith("content://com.termux.documents/tree/") &&
+					IS_DIR
+				) {
+					const moveRecursively = async (sourceUrl, targetParentUrl) => {
+						const sourceFs = fsOperation(sourceUrl);
+						const sourceName = Url.basename(sourceUrl);
+						const targetUrl = Url.join(targetParentUrl, sourceName);
 
-		if (clipBoard.action === "cut") {
-			//move
+						// Create target folder
+						await fsOperation(targetParentUrl).createDirectory(sourceName);
 
-			if (IS_FILE) {
-				const file = editorManager.getFile(clipBoard.url, "uri");
-				if (file) file.uri = newUrl;
-			} else if (IS_DIR) {
-				helpers.updateUriOfAllActiveFiles(clipBoard.url, newUrl);
+						// Get all entries in source folder
+						const entries = await sourceFs.lsDir();
+
+						// Move all files and folders recursively
+						for (const entry of entries) {
+							if (entry.isDirectory) {
+								await moveRecursively(entry.url, targetUrl);
+							} else {
+								const fileContent = await fsOperation(entry.url).readFile();
+								const fileName = entry.name || Url.basename(entry.url);
+								await fsOperation(targetUrl).createFile(fileName, fileContent);
+								await fsOperation(entry.url).delete();
+							}
+						}
+
+						// Delete the now-empty source folder
+						await sourceFs.delete();
+						return targetUrl;
+					};
+
+					newUrl = await moveRecursively(clipBoard.url, url);
+				} else {
+					newUrl = await fs.moveTo(url);
+				}
+			} else {
+				newUrl = await fs.copyTo(url);
+			}
+			const { name: newName } = await fsOperation(newUrl).stat();
+			stopLoading();
+			/**
+			 * CASES:
+			 * CASE 111: src is file and parent is collapsed where target is also collapsed
+			 * CASE 110: src is file and parent is collapsed where target is unclasped
+			 * CASE 101: src is file and parent is unclasped where target is collapsed
+			 * CASE 100: src is file and parent is unclasped where target is also unclasped
+			 * CASE 011: src is directory and parent is collapsed where target is also collapsed
+			 * CASE 001: src is directory and parent is unclasped where target is also collapsed
+			 * CASE 010: src is directory and parent is collapsed where target is also unclasped
+			 * CASE 000: src is directory and parent is unclasped where target is also unclasped
+			 */
+
+			if (clipBoard.action === "cut") {
+				//move
+
+				if (IS_FILE) {
+					const file = editorManager.getFile(clipBoard.url, "uri");
+					if (file) file.uri = newUrl;
+				} else if (IS_DIR) {
+					helpers.updateUriOfAllActiveFiles(clipBoard.url, newUrl);
+				}
+
+				switch (CASE) {
+					case "111":
+					case "011":
+						break;
+
+					case "110":
+						appendTile($target, createFileTile(newName, newUrl));
+						break;
+
+					case "101":
+						$src.remove();
+						break;
+
+					case "100":
+						appendTile($target, createFileTile(newName, newUrl));
+						$src.remove();
+						break;
+
+					case "001":
+						$src.parentElement.remove();
+						break;
+
+					case "010":
+						appendList($target, createFolderTile(newName, newUrl));
+						break;
+
+					case "000":
+						appendList($target, createFolderTile(newName, newUrl));
+						$src.parentElement.remove();
+						break;
+
+					default:
+						break;
+				}
+				FileList.remove(clipBoard.url);
+			} else {
+				//copy
+
+				switch (CASE) {
+					case "111":
+					case "101":
+					case "011":
+					case "001":
+						break;
+
+					case "110":
+					case "100":
+						appendTile($target, createFileTile(newName, newUrl));
+						break;
+
+					case "010":
+					case "000":
+						appendList($target, createFolderTile(newName, newUrl));
+						break;
+
+					default:
+						break;
+				}
 			}
 
-			switch (CASE) {
-				case "111":
-				case "011":
-					break;
-
-				case "110":
-					appendTile($target, createFileTile(newName, newUrl));
-					break;
-
-				case "101":
-					$src.remove();
-					break;
-
-				case "100":
-					appendTile($target, createFileTile(newName, newUrl));
-					$src.remove();
-					break;
-
-				case "001":
-					$src.parentElement.remove();
-					break;
-
-				case "010":
-					appendList($target, createFolderTile(newName, newUrl));
-					break;
-
-				case "000":
-					appendList($target, createFolderTile(newName, newUrl));
-					$src.parentElement.remove();
-					break;
-
-				default:
-					break;
-			}
-			FileList.remove(clipBoard.url);
-		} else {
-			//copy
-
-			switch (CASE) {
-				case "111":
-				case "101":
-				case "011":
-				case "001":
-					break;
-
-				case "110":
-				case "100":
-					appendTile($target, createFileTile(newName, newUrl));
-					break;
-
-				case "010":
-				case "000":
-					appendList($target, createFolderTile(newName, newUrl));
-					break;
-
-				default:
-					break;
-			}
+			FileList.append(url, newUrl);
+			toast(strings.success);
+			clearClipboard();
+		} catch (error) {
+			console.error(error);
+			helpers.error(error);
+		} finally {
+			stopLoading();
 		}
-
-		FileList.append(url, newUrl);
-		toast(strings.success);
-		clearClipboard();
 	}
 
 	async function insertFile() {
@@ -716,7 +806,6 @@ function appendList($target, $list) {
  */
 function createFolderTile(name, url) {
 	const $list = collapsableList(name, "folder", {
-		tail: <Tail target={() => $list.$title} />,
 		ontoggle: () => expandList($list),
 	});
 	const { $title } = $list;
@@ -737,7 +826,6 @@ function createFileTile(name, url) {
 	const $tile = tile({
 		lead: <span className={helpers.getIconForFile(name)}></span>,
 		text: name,
-		tail: <Tail target={() => $tile} />,
 	});
 	$tile.dataset.url = url;
 	$tile.dataset.name = name;
@@ -752,22 +840,22 @@ function createFileTile(name, url) {
  * @param {HTMLElement} param0.target
  * @returns {HTMLElement}
  */
-function Tail({ target }) {
-	return (
-		<span
-			className="icon more_vert"
-			attr-action="close"
-			onclick={(e) => {
-				e.stopPropagation();
-				e.preventDefault();
-				handleItems({
-					target: target(),
-					type: "contextmenu",
-				});
-			}}
-		></span>
-	);
-}
+// function Tail({ target }) {
+// 	return (
+// 		<span
+// 			className="icon more_vert"
+// 			attr-action="close"
+// 			onclick={(e) => {
+// 				e.stopPropagation();
+// 				e.preventDefault();
+// 				handleItems({
+// 					target: target(),
+// 					type: "contextmenu",
+// 				});
+// 			}}
+// 		></span>
+// 	);
+// }
 
 /**
  * Add file or folder to the list if expanded

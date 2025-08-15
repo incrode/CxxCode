@@ -8,6 +8,7 @@ import appSettings from "lib/settings";
  * @property {RegExp} [match]
  * @property {boolean} [required]
  * @property {string} [placeholder]
+ * @property {boolean} [capitalize] - If true, the first letter of the input will be capitalized
  * @property {(any)=>boolean} [test]
  */
 
@@ -19,12 +20,19 @@ import appSettings from "lib/settings";
  * @param {PromptOptions} options
  * @returns {Promise<string|number|null>} Returns null if cancelled
  */
+
 export default function prompt(
 	message,
 	defaultValue,
 	type = "text",
 	options = {},
 ) {
+	const commands = editorManager.editor.commands;
+	const originalExec = commands.exec;
+	const { capitalize = true } = options;
+
+	commands.exec = () => {}; // Disable all shortcuts
+
 	return new Promise((resolve) => {
 		const inputType = type === "textarea" ? "textarea" : "input";
 		type = type === "filename" ? "text" : type;
@@ -37,6 +45,7 @@ export default function prompt(
 			value: defaultValue,
 			className: "input",
 			placeholder: options.placeholder,
+			autocapitalize: capitalize ? "on" : "off",
 		});
 		const okBtn = tag("button", {
 			type: "submit",
@@ -50,6 +59,7 @@ export default function prompt(
 				hide();
 				let { value } = input;
 				if (type === "number") value = +value;
+
 				resolve(value);
 			},
 		});
@@ -151,6 +161,7 @@ export default function prompt(
 		}
 
 		function hide() {
+			commands.exec = originalExec;
 			actionStack.remove("prompt");
 			system.setInputType(appSettings.value.keyboardMode);
 			hidePrompt();

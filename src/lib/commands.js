@@ -1,9 +1,10 @@
+import fsOperation from "fileSystem";
 import Sidebar from "components/sidebar";
+import { TerminalManager } from "components/terminal";
 import color from "dialogs/color";
 import confirm from "dialogs/confirm";
 import prompt from "dialogs/prompt";
 import select from "dialogs/select";
-import fsOperation from "fileSystem";
 import actions from "handlers/quickTools";
 import recents from "lib/recents";
 import FileBrowser from "pages/fileBrowser";
@@ -11,14 +12,15 @@ import plugins from "pages/plugins";
 import Problems from "pages/problems/problems";
 import changeEncoding from "palettes/changeEncoding";
 import changeMode from "palettes/changeMode";
+import changeTheme from "palettes/changeTheme";
 import commandPalette from "palettes/commandPalette";
 import findFile from "palettes/findFile";
 import browser from "plugins/browser";
 import help from "settings/helpSettings";
 import mainSettings from "settings/mainSettings";
-import Url from "utils/Url";
 import { getColorRange } from "utils/color/regex";
 import helpers from "utils/helpers";
+import Url from "utils/Url";
 import checkFiles from "./checkFiles";
 import constants from "./constants";
 import EditorFile from "./editorFile";
@@ -281,6 +283,12 @@ export default {
 	syntax() {
 		changeMode();
 	},
+	"change-app-theme"() {
+		changeTheme("app");
+	},
+	"change-editor-theme"() {
+		changeTheme("editor");
+	},
 	"toggle-fullscreen"() {
 		app.classList.toggle("fullscreen-mode");
 		this["resize-editor"]();
@@ -337,6 +345,7 @@ export default {
 
 		let newname = await prompt(strings.rename, file.filename, "filename", {
 			match: constants.FILE_NAME_REGEX,
+			capitalize: false,
 		});
 
 		newname = helpers.fixFilename(newname);
@@ -346,7 +355,17 @@ export default {
 		if (uri) {
 			const fs = fsOperation(uri);
 			try {
-				const newUri = await fs.renameTo(newname);
+				let newUri;
+				if (uri.startsWith("content://com.termux.documents/tree/")) {
+					// Special handling for Termux content files
+					const newFilePath = Url.join(Url.dirname(uri), newname);
+					const content = await fs.readFile();
+					await fsOperation(Url.dirname(uri)).createFile(newname, content);
+					await fs.delete();
+					newUri = newFilePath;
+				} else {
+					newUri = await fs.renameTo(newname);
+				}
 				const stat = await fsOperation(newUri).stat();
 
 				newname = stat.name;
@@ -446,5 +465,13 @@ Additional Info:
 				console.error("Error getting device info:", error);
 				toast("Failed to get device info");
 			});
+	},
+	async "new-terminal"() {
+		try {
+			await TerminalManager.createServerTerminal();
+		} catch (error) {
+			console.error("Failed to create terminal:", error);
+			window.toast("Failed to create terminal");
+		}
 	},
 };

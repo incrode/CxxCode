@@ -1,13 +1,22 @@
 {
-	"$schema": "https://biomejs.dev/schemas/1.8.3/schema.json",
-	"organizeImports": {
-		"enabled": true
+	"$schema": "https://biomejs.dev/schemas/2.1.4/schema.json",
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab"
+	},
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
 	},
 	"linter": {
 		"enabled": true,
 		"rules": {
 			"recommended": false,
 			"complexity": {
+				"noForEach": "off",
 				"noStaticOnlyClass": "error",
 				"noUselessSwitchCase": "error",
 				"useFlatMap": "error"
@@ -25,17 +34,23 @@
 			}
 		}
 	},
+	"javascript": {
+		"globals": ["Global1"]
+	},
 	"files": {
-		"include": ["src/**/*", "utils/**/*.js", "www/**/*.js", "www/res/**/*.css"],
-		"ignore": [
-			"www/js/**/*.js",
-			"www/css/**/*.css",
-			"src/plugins/**/*",
-			"plugins/**/*",
-			"hooks/**/*",
-			"fastlane/**/*",
-			"res/**/*",
-			"platforms/**/*"
+		"includes": [
+			"**/src/**/*",
+			"**/utils/**/*.js",
+			"!**/www/build/**/*",
+			"**/www/res/**/*.css",
+			"**/src/plugins/terminal/**",
+			"!**/ace-builds",
+			"!**/src/plugins/**/*",
+			"!**/plugins/**/*",
+			"!**/hooks/**/*",
+			"!**/fastlane/**/*",
+			"!**/res/**/*",
+			"!**/platforms/**/*"
 		]
 	}
 }

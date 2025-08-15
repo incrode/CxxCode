@@ -179,6 +179,12 @@ const langMap = {
 			return await import("../lang/it-it.json");
 		},
 	},
+	"he-il": {
+		name: "Hebrew",
+		async strings() {
+			return await import("../lang/he-il.json");
+		},
+	},
 };
 
 export default {
@@ -186,7 +192,7 @@ export default {
 		code = code?.toLowerCase();
 		const lang = langMap[code] || langMap["en-us"];
 		const strings = await lang.strings();
-		window.strings = strings;
+		window.strings = strings.default;
 	},
 	list: Object.keys(langMap).map((code) => [code, langMap[code].name]),
 	getName(code) {

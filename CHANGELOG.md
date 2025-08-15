@@ -1,5 +1,249 @@
 # Change Log
 
+## v1.11.5 (963)
+
+* Alpine Linux Backend by @RohitKushvaha01 in https://github.com/Acode-Foundation/Acode/pull/1401
+* fix: html escaping for console page by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1411
+* Create plugin for native libs by @RohitKushvaha01 in https://github.com/Acode-Foundation/Acode/pull/1413
+* feat: terminal frontend by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1415
+* Update hu-hu.json translation by @summoner001 in https://github.com/Acode-Foundation/Acode/pull/1423, https://github.com/Acode-Foundation/Acode/pull/1425, https://github.com/Acode-Foundation/Acode/pull/1440
+* chore: update id-id.json translation by @hyperz111 in https://github.com/Acode-Foundation/Acode/pull/1424, https://github.com/Acode-Foundation/Acode/pull/1447
+* All file access permission for terminal by @RohitKushvaha01 in https://github.com/Acode-Foundation/Acode/pull/1426
+* refactor: plugins page by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1428
+	* Fixed infinite scrolling in case of filtering on both plugin page and sidebar
+    * Ui improvements on plugin page
+* Revamped few themes(fixes visibility issue) and Added few new ones  by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1430
+	* New theme: Neon, Sunset, Glass, Glass Dark
+	* Revamped themes: System (Dark & Light), Oled, Light
+	* System theme option is available on free too.
+* fix: scaling issue by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1431
+* fix: quicktools toggler responsiveness(scaling) and migrate biome by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1442
+* chore: update ace to v1.43.2 by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1443
+* feat: add uninstall option in terminal setting and tab subtitle fixes by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1445
+* feat: alpine document provider(exposes terminal public dir to saf picker) by @RohitKushvaha01 in https://github.com/Acode-Foundation/Acode/pull/1444
+* feat: improved logging + fix terminal installation failure by @RohitKushvaha01 in https://github.com/Acode-Foundation/Acode/pull/1446
+* some terminal related quality improvements by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1449
+	* fix: dont start selection in case of back gesture
+	* remove useless border-radius from terminal container
+	* fix: improve terminal cursor positioning for mobile keyboard events
+	* fix: update terminal container background when theme changes
+* exclude alpine/public while backup by @RohitKushvaha01 in https://github.com/Acode-Foundation/Acode/pull/1450
+* Custom port support in Terminal manager by @RohitKushvaha01 in https://github.com/Acode-Foundation/Acode/pull/1459
+* 🌐 i18n(locale): update vietnamese translations by @Nekitori17 in https://github.com/Acode-Foundation/Acode/pull/1461
+* fix: infinite loading when previewing by @RohitKushvaha01 in https://github.com/Acode-Foundation/Acode/pull/1460
+* Feat/some improvements to terminal and its api by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1463
+* Fixes/sidebar extension state by clearing and active autocompletion box background  by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1466
+* feat: add terminal like search and replace history by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1467
+* fix: theme issue in terminal context menu
+* fix: prevent folder paste loops and improve SAF handling(termux) in cut operation by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1474
+	- Add validation to prevent pasting folders into themselves or subdirectories
+	- Implement special Termux SAF handling for cut operations with recursive file/folder moving
+	- Fix createFileStructure to handle nested paths (foo/bar) for file:// URIs
+
+## v1.11.4 (962)
+
+* Fix renaming current Termux URI file whilst viewing/editing it by @peasneovoyager2banana2
+* fix: html preview on unsaved files by @RohitKushvaha01
+* Add markdown-it-footnote and task lists support by @UnschooledGamer
+* Fix quickTools height fallback by @bajrangCoder
+* Comment out column adjustment in touchHandler.js for weird selection by @bajrangCoder
+* Update Indonesian Translation by @hyperz111
+* feat: :sparkles: Native Websocket Plugin (uses okhttp) by @UnschooledGamer
+* fix: unintentional scrolling of tab container while dragging a tab by @peasneovoyager2banana2
+* feat. alert user when changing editor theme by @RohitKushvaha01
+* feat: Improve handling of intents before files are restored on startup by @bajrangCoder
+* fix: don't save state of SAFMode="single" files by @bajrangCoder
+* fix: plugin passing undefined to plugin item on plugin page by @bajrangCoder
+* Integrated cordova-plugin-buildinfo as a local plugin by @RohitKushvaha01
+* fix: crash when running unsaved file by @RohitKushvaha01
+* feat: show open source plugin url on plugin page by @bajrangCoder
+* fix: Make "None" option clickable in select dialog on formatter settings by @bajrangCoder
+* fix: show confirm when copy/cut in sidebar instead of alert so user can proceed if they want by @bajrangCoder
+* feat: plugin enable/disable functionality and update translations by @UnschooledGamer
+* Update hu-hu.json by @summoner001
+* Advanced execution interface by @RohitKushvaha01
+
+## v1.11.3 (959)
+
+* feat: added system theme by @RohitKushvaha01
+* add: close-inactive-issues.yml by @UnschooledGamer
+* Added Executor by @RohitKushvaha01
+* fix: Executor Plugin's js module/interface path by @UnschooledGamer
+* fix: teardrop goes out of viewport when there is no gutter by @bajrangCoder
+* fix: infinite loading screen due to executor by @RohitKushvaha01
+* fix: infinite loading when previewing html files by @RohitKushvaha01
+* fix: apk related issues
+
+## v1.11.2 (958)
+
+* fix: cors related issues when installing plugins from remote by @bajrangCoder
+* fix: Acode ignoring main, readme and icon fields in plugin manifest by @alMukaafih
+* feat: inapp acode account login by @bajrangCoder
+* fix: launchApp function by @RohitKushvaha01
+* Update plugin documentation url by @RohitKushvaha01
+* Backup restore fixes by @bajrangCoder
+* file: re-emit switch and load file events after plugin load by @bajrangCoder
+* fix: File copy-paste retains paste option after file is copied. by @RohitKushvaha01
+* Fix sftp sidebar UI issue by @bajrangCoder
+* fix: http relative path by @RohitKushvaha01
+* Download support by @RohitKushvaha01
+* Add Custom File Type Handler API by @bajrangCoder
+* fix: applying folds on reopening the app by @bajrangCoder
+* feat(tabs): Implement Shadow DOM isolation for non-editor tabs by @bajrangCoder
+* remove invalid font by @bajrangCoder
+* Improve Indonesian Translation by @hyperz111
+* feat: improve changelogs page by @bajrangCoder
+* Refactor, feat: Select dialog by @overskul
+* Fix: Translate "Donation Message" and some words by @hyperz111
+* Fix: "File Not Found" error when previewing HTML files from a Termux directory by @RohitKushvaha01
+* Update zh-cn.json and zh-hant.json by @LaunchLee
+* fix: console not showing on unsaved html file by @RohitKushvaha01
+* File Menu & QuickTools Visibility for editor tabs by @bajrangCoder
+* fix: handle edge case for `hideQuickTools` property by @bajrangCoder
+* feat: add more new keys(<kbd>Home</kbd>,<kbd>End</kbd>, <kbd>PageUp</kbd>, <kbd>PageDown</kbd>, <kbd>Delete</kbd>) and symbols(`~` `Backtick`,`#` ,`$` ,`%` ,`^`) for quicktools by @bajrangCoder
+* Fixed select box issue and improved it by @bajrangCoder
+	* Added `x` to delete recent files/folder from dialog
+* Update Hungarian translation by @summoner001
+* chore(i18n): update vi-vn.json by @Nekitori17
+* fix: file not found error by @RohitKushvaha01
+* feat: revamped file tree by @bajrangCoder
+* fix: pagedown key issue in editor by @bajrangCoder
+* feat: open files with arbitrary extension names by @RohitKushvaha01
+* add Hebrew language by @elid34
+* feat: add support for compound file paths like `.blade.php` by @bajrangCoder
+* support string content in tabs by @overskul
+* update Tagalog/Filipino language by @ychwah
+* fix: keyboard shortcuts leaks into ace editor by @RohitKushvaha01
+* Resizeable activity by @RohitKushvaha01
+* update ace v1.41.0 by @bajrangCoder
+* Fix html content access by @RohitKushvaha01
+* fix: path overlap issue in html viewer by @RohitKushvaha01
+* fix: only initiate iap stuff in case of paid plugin on sidebar by @bajrangCoder
+
+## v1.11.1 (957)
+
+### Features
+- **Syntax Highlighting**: Added syntax highlighting for code blocks on the plugin page using Ace Editor.
+- **Theme Settings Fallback**: Implemented a fallback mechanism on the theme settings page when a custom tab is opened.
+- **QuickTools Scroll Wheel Support**: Added support for scroll wheel events in QuickTools when in click mode.
+- **SFTP Improvements**:
+  - Enhanced logging for better debugging.
+  - Enabled Bouncy Castle for SFTP, resolving connection issues with certain key types.
+- **App Update Mechanism**:
+  - Now checks for updates after app startup.
+  - Uses a native approach instead of traditional fetch.
+
+### Fixes & Improvements
+- **SD Card Plugin**: Handled a few edge cases to prevent crashes.
+- **GitHub Plugin Palette Fix**: Resolved an issue where the color palette was breaking the GitHub plugin.
+- **Plugin Installation Fixes**:
+  - Updated the install button in the sidebar to prevent multiple installations.
+  - Fixed the installation mechanism in both the sidebar and the `installPlugin` API.
+- **Quality of Life Enhancements**:
+  - Various small improvements when installing/uninstalling plugins from the sidebar.
+
+#### ⚠️ Experimental Changes ⚠️
+- **Improved Plugin Loading**:
+  - Only **theme plugins** load on Acode startup for faster performance.
+  - All other plugins load **after** Acode startup.
+- **Important for Theme Developers**:
+  - Ensure your **plugin ID includes the word "theme"** to be correctly recognized as a theme plugin.
+  - No changes are needed for existing theme plugins.
+- **Potential Issues**: Since this is an experimental change, some features may break. Please report any issues encountered.
+
+## v1.11.0 (956)
+
+### Fixes
+* Fixed a typo: "vission" → "vision" by @ByteJoseph in #1125
+* Fixed heading and image alignment issues with `alignment="center"` on the plugin page by @bajrangCoder in #1132
+* Fixed file listing in SFTP by @bajrangCoder in #1133
+* Fixed fallback to `*/*` when the `accept` attribute is absent in `<input type="file">` in the in-app browser by @bajrangCoder in #1154
+* Fixed console not reappearing after page reload in the in-app browser by @bajrangCoder in #1155
+* Fixed infinite scroll on the plugin page to remove duplicates by @bajrangCoder in #1171
+* Fixed logger to limit its size in #1167
+* Fixed an issue where the info dialog wouldn't appear for non-editor tabs in #1167
+* Fixed incorrect file attributes in FTP by @bajrangCoder in #1194
+* Fixed the palette not opening when triggered from an existing palette by @bajrangCoder in #1197
+* Fixed trigering of infinite scroll on plugin page while searching by @bajrangCoder in #1200
+
+### Features
+* Improved tab view gesture handling to distinguish between scroll and swipe on the plugin page by @bajrangCoder in #1131
+* Added color preview for SVG files by @bajrangCoder in #1135
+* Implemented custom editor tab support by @bajrangCoder in #1136
+  * Now supports image, video, and audio previews directly in the editor instead of pop-ups
+  * Exposed API for plugin developers to add content in editor tabs via `EditorFile`
+* Redesigned the About page by @bajrangCoder in #1153
+* Added a plugin rebuild option for local plugins by @bajrangCoder in #1150
+  * Plugins can use `cordova.plugin.http` instead of `fetch` to avoid CORS issues when making network requests
+* Redesigned the Plugin page by @bajrangCoder in #1152
+  * Added new metadata fields in `plugin.json`: `license`, `changelog`, `keywords`, and `contributors`
+* Added a new option to open files in an external app from the file browser in #1163
+* Added minor sidebar UI tweaks and improved input element styling in #1164
+* Used theme colors in the extra cutout area in landscape mode instead of the default color in #1165
+* Improved file info dialog design in #1170
+* Added Eruda console support for external sites in Acode's built-in browser in #1172
+* Added a new editor setting: **"Fade fold widgets"** by @bajrangCoder in #1195
+* Added a command to change the editor and app theme via the command palette by @bajrangCoder in #1197
+* Added option to install plugins directly from sidebar extensions app by @bajrangCoder in #1200
+
+### Improvements
+* Improved paste operation with proper error handling in #1162
+* Rewritten SFTP implementation(#1167):
+  * Better performance and stability
+  * Improved symlink support with better visual distinction
+  * Proper error handling
+  * Enhanced file reading (downloading) and writing
+  * Uses native APIs for file system operations
+  * Better buffer handling—now even 30-40 minute videos load within seconds (faster than internal storage)
+  * Emoji support added
+* Improved the FTP client (#1193) by @bajrangCoder
+  * Supports emoji-named files
+  * Improved symlink handling
+  * Better handling of videos and images as binary files
+  * Displays file names instead of full paths
+* Reworked the plugin page UI—now displays essential info such as author, license, price, etc., in the list view by @bajrangCoder in #1196
+* Tweaked breadcrumbs in the file browser to follow the app theme in #1167
+* Updated the SSH library to `v3.1.2` in #1167
+* Removed deprecated APIs in #1167
+* Added experimental support for saving native logs in Acode Logger in #1167
+* Tweaked the donation page  #1188
+
+### Other Changes
+* **Chore**: Updated Ace Editor to `v1.39.0`
+  * Added CSV & TSV mode
+  * Improved search support for multi-line patterns (`\n`, `\t`)
+  * And more—see the Ace Changelog
+* Many translation updates for `hu-hu` by @summoner
+
+## v1.10.7 (955)
+
+* Update hu-hu.json by @summoner001 in https://github.com/Acode-Foundation/Acode/pull/1092
+* build(deps): bump path-to-regexp and express by @dependabot in https://github.com/Acode-Foundation/Acode/pull/1093
+* Update hu-hu.json by @summoner001 in https://github.com/Acode-Foundation/Acode/pull/1094
+* Exclude python `venv` and php `vendor` folders to speedup startup by @Jobians in https://github.com/Acode-Foundation/Acode/pull/1096
+* Update de-de.json to 1.10.6.954 by @Micha-he in https://github.com/Acode-Foundation/Acode/pull/1097
+* Update pl-pl.json by @andrewczm in https://github.com/Acode-Foundation/Acode/pull/1099
+* minor fixes and tweaks by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1103
+  * Added new command(file explorer) to open file manager
+  * Added copy button to code blocks on plugin page
+  * some error logging for debugging
+  * few markdown tweaks
+* Updating Brazilian Portuguese language  by @sebastianjnuwu in https://github.com/Acode-Foundation/Acode/pull/1102
+* add className by @NezitX in https://github.com/Acode-Foundation/Acode/pull/1104
+* Add monochrome icon by @Npepperlinux in https://github.com/Acode-Foundation/Acode/pull/1108
+* fix: issue while making request to any ipv4, etc from app by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1107
+* Update zh-cn.json and zh-hant.json by @LaunchLee in https://github.com/Acode-Foundation/Acode/pull/1109
+* fix: show "No matches found" when palette has no matching items by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1110
+* build(deps): bump systeminformation from 5.21.8 to 5.23.14 by @dependabot in https://github.com/Acode-Foundation/Acode/pull/1111
+* Follow up for #1110 by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1112
+* fix: cleanup plugin install state on failed installations by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1113
+* feat: implement infinite scroll for plugin list by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1114
+* feat: add quick install button for plugins in sidebar by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1115
+* Plugin Dependencies by @alMukaafih in https://github.com/Acode-Foundation/Acode/pull/1030
+* updated install state to reflect fs behaviour of android by @alMukaafih in https://github.com/Acode-Foundation/Acode/pull/1118
+* fix: clean broken or half installed plugins on start by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1121
+* few improvements by @bajrangCoder in https://github.com/Acode-Foundation/Acode/pull/1122
+
 ## v1.10.6 (954)
 
 ### New Features

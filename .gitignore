@@ -1,7 +1,6 @@
 /node_modules
 /build.json
-/www/js/build
-/www/css/build
+/www/build
 /plugins
 /platforms
 /keystore.jks
@@ -11,3 +10,6 @@
 .DS_Store
 pnpm-lock.yaml
 .zed
+.idea
+ace-builds
+fdroid.bool

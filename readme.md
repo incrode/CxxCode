@@ -4,7 +4,7 @@
   <img src='res/logo_1.png' width='250'>
 </p>
 
-[![](https://img.shields.io/endpoint?label=Acode&style=flat-square&url=https%3A%2F%2Fmogyo.ro%2Fquart-apis%2Ftgmembercount%3Fchat_id%3Dfoxdebug_acode)](https://t.me/foxdebug_acode) [![](https://dcbadge.vercel.app/api/server/vVxVWYUAWD?style=flat)](https://discord.gg/vVxVWYUAWD)
+[![](https://img.shields.io/endpoint?logo=telegram&label=Acode&style=flat&url=https%3A%2F%2Facode.app%2Fapi%2Ftelegram-members-count)](https://t.me/foxdebug_acode) [![](https://dcbadge.vercel.app/api/server/vVxVWYUAWD?style=flat)](https://discord.gg/vVxVWYUAWD)
 
 ## • Overview
 
@@ -60,8 +60,11 @@ yarn setup
 2. Build the project:
 
 ```shell
-yarn build <platform (android)> <free|paid> <p|prod|d|dev>
+yarn build <free|paid> <p|prod|d|dev> [fdroid]
 ```
+
+**Note**: Add the fdroid flag only if you want to build the F-Droid-compatible version of Acode.
+Omit this flag to build the regular APK (Play Store or normal version).
 
 ## • Contributing
 
@@ -101,7 +104,7 @@ Also, ensure that your code is well-documented and includes comments where neces
 
 For comprehensive documentation on creating plugins for Acode Editor, visit the [repository](https://github.com/Acode-Foundation/acode-plugin).
 
-For plugin development information, refer to: [Acode Plugin Documentation](https://acode.app/plugin-docs)
+For plugin development information, refer to: [Acode Plugin Documentation](https://docs.acode.app/)
 
 ## Star History
 

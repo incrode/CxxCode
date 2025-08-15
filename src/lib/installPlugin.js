@@ -1,12 +1,12 @@
+import fsOperation from "fileSystem";
 import ajax from "@deadlyjack/ajax";
 import alert from "dialogs/alert";
 import confirm from "dialogs/confirm";
 import loader from "dialogs/loader";
-import fsOperation from "fileSystem";
 import purchaseListener from "handlers/purchase";
 import JSZip from "jszip";
-import Url from "utils/Url";
 import helpers from "utils/helpers";
+import Url from "utils/Url";
 import constants from "./constants";
 import InstallState from "./installState";
 import loadPlugin from "./loadPlugin";
@@ -30,7 +30,9 @@ export default async function installPlugin(
 	isDependency,
 ) {
 	if (!isDependency) {
-		loaderDialog = loader.create(name || "Plugin", strings.installing);
+		loaderDialog = loader.create(name || "Plugin", strings.installing, {
+			timeout: 6000,
+		});
 		depsLoaders = [];
 	}
 
@@ -64,20 +66,46 @@ export default async function installPlugin(
 	try {
 		if (!isDependency) loaderDialog.show();
 
-		const plugin = await fsOperation(pluginUrl).readFile(
-			undefined,
-			(loaded, total) => {
-				loaderDialog.setMessage(
-					`${strings.loading} ${((loaded / total) * 100).toFixed(2)}%`,
+		let plugin;
+		if (
+			pluginUrl.includes(constants.API_BASE) ||
+			pluginUrl.startsWith("file:") ||
+			pluginUrl.startsWith("content:")
+		) {
+			// Use fsOperation for Acode registry URL
+			plugin = await fsOperation(pluginUrl).readFile(
+				undefined,
+				(loaded, total) => {
+					loaderDialog.setMessage(
+						`${strings.loading} ${((loaded / total) * 100).toFixed(2)}%`,
+					);
+				},
+			);
+		} else {
+			// cordova http plugin for others
+			plugin = await new Promise((resolve, reject) => {
+				cordova.plugin.http.sendRequest(
+					pluginUrl,
+					{
+						method: "GET",
+						responseType: "arraybuffer",
+					},
+					(response) => {
+						resolve(response.data);
+						loaderDialog.setMessage(`${strings.loading} 100%`);
+					},
+					(error) => {
+						reject(error);
+					},
 				);
-			},
-		);
+			});
+		}
 
 		if (plugin) {
 			const zip = new JSZip();
 			await zip.loadAsync(plugin);
 
-			if (!zip.files["plugin.json"] || !zip.files["main.js"]) {
+			if (!zip.files["plugin.json"]) {
 				throw new Error(strings["invalid plugin"]);
 			}
 
@@ -85,6 +113,25 @@ export default async function installPlugin(
 			const pluginJson = JSON.parse(
 				await zip.files["plugin.json"].async("text"),
 			);
+
+			/** patch main in manifest */
+			if (!zip.files[pluginJson.main]) {
+				pluginJson.main = "main.js";
+			}
+
+			/** patch icon in manifest */
+			if (!zip.files[pluginJson.icon]) {
+				pluginJson.icon = "icon.png";
+			}
+
+			/** patch readme in manifest */
+			if (!zip.files[pluginJson.readme]) {
+				pluginJson.readme = "readme.md";
+			}
+
+			if (!zip.files[pluginJson.main]) {
+				throw new Error(strings["invalid plugin"]);
+			}
 
 			if (!isDependency && pluginJson.dependencies) {
 				const manifests = await resolveDepsManifest(pluginJson.dependencies);
@@ -296,7 +343,7 @@ async function resolveDep(manifest) {
 
 		iap.setPurchaseUpdatedListener(...purchaseListener(onpurchase, onerror));
 		loaderDialog.setMessage(strings["loading..."]);
-		await helpers.promisify(iap.purchase, product.json);
+		await helpers.promisify(iap.purchase, product.productId);
 
 		async function onpurchase(e) {
 			const purchase = await getPurchase(product.productId);

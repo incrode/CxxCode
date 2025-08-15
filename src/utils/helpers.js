@@ -1,8 +1,7 @@
-import ajax from "@deadlyjack/ajax";
-import escapeStringRegexp from "escape-string-regexp";
 import fsOperation from "fileSystem";
-
+import ajax from "@deadlyjack/ajax";
 import alert from "dialogs/alert";
+import escapeStringRegexp from "escape-string-regexp";
 import constants from "lib/constants";
 import path from "./Path";
 import Uri from "./Uri";
@@ -397,12 +396,45 @@ export default {
 				currentUri.includes("com.termux.documents")
 			)
 		) {
-			if (isFile) {
-				await fsOperation(uri).createFile(pathString);
-			} else {
-				await fsOperation(uri).createDirectory(pathString);
+			// Handle nested paths for regular file:// URIs
+			const pathParts = pathString.split("/").filter(Boolean);
+			let currentPath = uri;
+			let firstCreatedPath = null;
+			let firstCreatedType = null;
+
+			for (let i = 0; i < pathParts.length; i++) {
+				const isLastPart = i === pathParts.length - 1;
+				const partName = pathParts[i];
+				const newPath = Url.join(currentPath, partName);
+
+				if (isLastPart && isFile) {
+					// Create file if it's the last part and we're creating a file
+					if (!(await fsOperation(newPath).exists())) {
+						await fsOperation(currentPath).createFile(partName);
+						if (firstCreatedPath === null) {
+							firstCreatedPath = newPath;
+							firstCreatedType = "file";
+						}
+					}
+				} else {
+					// Create directory for intermediate parts or when creating a folder
+					if (!(await fsOperation(newPath).exists())) {
+						await fsOperation(currentPath).createDirectory(partName);
+						if (firstCreatedPath === null) {
+							firstCreatedPath = newPath;
+							firstCreatedType = "folder";
+						}
+					}
+				}
+				currentPath = newPath;
 			}
-			return { uri: uri, type: isFile ? "file" : "folder" };
+
+			return {
+				uri: firstCreatedPath || Url.join(uri, pathParts[0]),
+				type:
+					firstCreatedType ||
+					(isFile && pathParts.length === 1 ? "file" : "folder"),
+			};
 		}
 
 		for (let i = 0; i < parts.length; i++) {
@@ -474,5 +506,59 @@ export default {
 		const trimmedCountStr = countStr.replace(/\.?0+$/, "");
 
 		return `${trimmedCountStr}${units[index]}`;
+	},
+	isBinary(file) {
+		// binary file extensions
+		const binaryExtensions = [
+			"exe",
+			"dll",
+			"so",
+			"dylib",
+			"bin",
+			"o",
+			"apk",
+			"aab",
+			"zip",
+			"rar",
+			"7z",
+			"gz",
+			"tar",
+			"tgz",
+			"jpg",
+			"jpeg",
+			"png",
+			"gif",
+			"bmp",
+			"ico",
+			"mp3",
+			"mp4",
+			"wav",
+			"avi",
+			"mov",
+			"dds",
+			"tga",
+			"swf",
+			"ttf",
+			"eot",
+			"otf",
+			"woff",
+			"woff2",
+			"pdf",
+			"doc",
+			"docx",
+			"xls",
+			"xlsx",
+			"class",
+			"pyc",
+			"jar",
+			"war",
+		];
+
+		const extension = Url.basename(file)?.split(".")?.pop()?.toLowerCase();
+
+		if (extension && binaryExtensions.includes(extension)) {
+			return true;
+		}
+		return false;
 	},
 };

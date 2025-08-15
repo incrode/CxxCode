@@ -15,14 +15,24 @@ export default function () {
 	const $page = Page(strings.theme.capitalize());
 	const $search = <span attr-action="search" className="icon search"></span>;
 	const $themePreview = <div id="theme-preview"></div>;
-	const list = new Ref();
+	const list = Ref();
 	const editor = ace.edit($themePreview);
 
 	const session = ace.createEditSession("");
-	const currentSession = editorManager.activeFile.session;
+	const activeFile = editorManager.activeFile;
 
-	session.setMode(currentSession.getMode());
-	session.setValue(currentSession.getValue());
+	if (activeFile && activeFile.type === "editor") {
+		const currentSession = activeFile.session;
+		session.setMode(currentSession.getMode());
+		session.setValue(currentSession.getValue());
+	} else {
+		// Fallback content for preview
+		session.setMode("ace/mode/javascript");
+		session.setValue(`// Acode is awesome!
+const message = "Welcome to Acode";
+console.log(message);`);
+	}
+
 	editor.setReadOnly(true);
 	editor.setSession(session);
 	editor.renderer.setMargin(0, 0, -16, 0);
@@ -183,7 +193,12 @@ export default function () {
 	 * @param {string} param0.theme
 	 */
 	function setEditorTheme({ caption, theme }) {
-		editorManager.editor.setTheme(theme); // main editor
+		if (appSettings.value.appTheme.toLowerCase() === "system") {
+			alert(
+				"App theme is set to 'System'. Changing the editor theme will not affect the editor appearance.",
+			);
+		}
+		editorManager.editor.setTheme(theme);
 		editor.setTheme(theme); // preview
 		appSettings.update(
 			{

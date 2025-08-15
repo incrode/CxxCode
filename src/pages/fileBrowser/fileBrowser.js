@@ -1,5 +1,7 @@
 import "./fileBrowser.scss";
 
+import fsOperation from "fileSystem";
+import externalFs from "fileSystem/externalFs";
 import Checkbox from "components/checkbox";
 import Contextmenu from "components/contextmenu";
 import Page from "components/page";
@@ -9,8 +11,6 @@ import confirm from "dialogs/confirm";
 import loader from "dialogs/loader";
 import prompt from "dialogs/prompt";
 import select from "dialogs/select";
-import fsOperation from "fileSystem";
-import externalFs from "fileSystem/externalFs";
 import JSZip from "jszip";
 import actionStack from "lib/actionStack";
 import checkFiles from "lib/checkFiles";
@@ -20,13 +20,14 @@ import projects from "lib/projects";
 import recents from "lib/recents";
 import remoteStorage from "lib/remoteStorage";
 import appSettings from "lib/settings";
+import mimeTypes from "mime-types";
 import mustache from "mustache";
 import filesSettings from "settings/filesSettings";
 import URLParse from "url-parse";
-import Url from "utils/Url";
 import helpers from "utils/helpers";
-import _addMenuHome from "./add-menu-home.hbs";
+import Url from "utils/Url";
 import _addMenu from "./add-menu.hbs";
+import _addMenuHome from "./add-menu-home.hbs";
 import _template from "./fileBrowser.hbs";
 import _list from "./list.hbs";
 import util from "./util";
@@ -766,6 +767,7 @@ function FileBrowserInclude(mode, info, doesOpenLast = true) {
 
 				if (helpers.isFile(type)) {
 					options.push(["info", strings.info, "info"]);
+					options.push(["open_with", strings["open with"], "open_in_browser"]);
 				}
 
 				if (currentDir.url !== "/" && url) {
@@ -818,6 +820,27 @@ function FileBrowserInclude(mode, info, doesOpenLast = true) {
 					case "copyuri":
 						navigator.clipboard.writeText(url);
 						alert(strings.success, strings["copied to clipboard"]);
+						break;
+
+					case "open_with":
+						try {
+							let mimeType = mimeTypes.lookup(name || "text/plain");
+							const fs = fsOperation(url);
+							if (/^s?ftp:/.test(url)) return fs.localName;
+
+							system.fileAction(
+								(await fs.stat()).url,
+								name,
+								"VIEW",
+								mimeType,
+								() => {
+									toast(strings["no app found to handle this file"]);
+								},
+							);
+						} catch (error) {
+							console.error(error);
+							toast(strings.error);
+						}
 						break;
 				}
 			}
@@ -1010,6 +1033,33 @@ function FileBrowserInclude(mode, info, doesOpenLast = true) {
 				);
 			}
 
+			// Check for Terminal Home Directory storage
+			try {
+				const isTerminalInstalled = await Terminal.isInstalled();
+				if (typeof Terminal !== "undefined" && isTerminalInstalled) {
+					const isTerminalSupported = await Terminal.isSupported();
+
+					if (isTerminalSupported && isTerminalInstalled) {
+						const terminalHomeUrl = cordova.file.dataDirectory + "alpine/home";
+
+						// Check if this storage is not already in the list
+						const terminalStorageExists = allStorages.find(
+							(storage) =>
+								storage.uuid === "terminal-home" ||
+								storage.url === terminalHomeUrl,
+						);
+
+						if (!terminalStorageExists) {
+							util.pushFolder(allStorages, "Terminal Home", terminalHomeUrl, {
+								uuid: "terminal-home",
+							});
+						}
+					}
+				}
+			} catch (error) {
+				console.error("Error checking Terminal installation:", error);
+			}
+
 			try {
 				const res = await externalFs.listStorages();
 				res.forEach((storage) => {
@@ -1059,7 +1109,7 @@ function FileBrowserInclude(mode, info, doesOpenLast = true) {
 		 */
 		async function getDir(url, name) {
 			const { fileBrowser } = appSettings.value;
-			let list = null;
+			let list = [];
 			let error = false;
 
 			if (url in cachedDir) {
@@ -1084,7 +1134,7 @@ function FileBrowserInclude(mode, info, doesOpenLast = true) {
 
 					const fs = fsOperation(url);
 					try {
-						list = await fs.lsDir();
+						list = (await fs.lsDir()) ?? [];
 					} catch (err) {
 						if (progress[id]) {
 							helpers.error(err, url);

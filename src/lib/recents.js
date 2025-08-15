@@ -1,7 +1,7 @@
 import select from "dialogs/select";
 import escapeStringRegexp from "escape-string-regexp";
-import Url from "utils/Url";
 import helpers from "utils/helpers";
+import Url from "utils/Url";
 
 const recents = {
 	/**
@@ -91,14 +91,29 @@ const recents = {
 			for (let dir of dirs) {
 				const { url } = dir;
 
-				all.push([
-					{
-						type: "dir",
-						val: dir,
+				const dirValue = {
+					type: "dir",
+					val: dir,
+				};
+
+				const tailElement = tag("span", {
+					className: "icon clearclose",
+					dataset: {
+						action: "clear",
 					},
-					shortName(url),
-					"icon folder",
-				]);
+				});
+
+				all.push({
+					value: dirValue,
+					text: shortName(url),
+					icon: "folder",
+					tailElement: tailElement,
+					ontailclick: (e) => {
+						const $item = e.currentTarget.closest(".tile");
+						if ($item) $item.remove();
+						this.removeFolder(dir.url);
+					},
+				});
 			}
 		}
 
@@ -107,14 +122,29 @@ const recents = {
 			for (let file of files) {
 				if (!file) continue;
 				const name = shortName(Url.parse(file).url);
-				all.push([
-					{
-						type: "file",
-						val: file,
+
+				const fileValue = {
+					type: "file",
+					val: file,
+				};
+				const tailElement = tag("span", {
+					className: "icon clearclose",
+					dataset: {
+						action: "clear",
 					},
-					name,
-					helpers.getIconForFile(name),
-				]);
+				});
+
+				all.push({
+					value: fileValue,
+					text: name,
+					icon: helpers.getIconForFile(name),
+					tailElement: tailElement,
+					ontailclick: (e) => {
+						const $item = e.currentTarget.closest(".tile");
+						if ($item) $item.remove();
+						this.removeFile(file);
+					},
+				});
 			}
 		}
 

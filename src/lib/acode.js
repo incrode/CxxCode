@@ -1,9 +1,14 @@
+import fsOperation from "fileSystem";
+import sidebarApps from "sidebarApps";
+import ajax from "@deadlyjack/ajax";
+import { addMode, removeMode } from "ace/modelist";
 import Contextmenu from "components/contextmenu";
 import inputhints from "components/inputhints";
 import Page from "components/page";
 import palette from "components/palette";
 import settingsPage from "components/settingsPage";
 import SideButton from "components/sideButton";
+import { TerminalManager, TerminalThemeManager } from "components/terminal";
 import toast from "components/toast";
 import tutorial from "components/tutorial";
 import alert from "dialogs/alert";
@@ -14,35 +19,31 @@ import loader from "dialogs/loader";
 import multiPrompt from "dialogs/multiPrompt";
 import prompt from "dialogs/prompt";
 import select from "dialogs/select";
-import fsOperation from "fileSystem";
+import { addIntentHandler, removeIntentHandler } from "handlers/intent";
 import keyboardHandler from "handlers/keyboard";
+import purchaseListener from "handlers/purchase";
 import windowResize from "handlers/windowResize";
 import actionStack from "lib/actionStack";
 import commands from "lib/commands";
 import EditorFile from "lib/editorFile";
 import files from "lib/fileList";
+import fileTypeHandler from "lib/fileTypeHandler";
 import fonts from "lib/fonts";
 import NotificationManager from "lib/notificationManager";
-import openFolder from "lib/openFolder";
+import openFolder, { addedFolder } from "lib/openFolder";
 import projects from "lib/projects";
 import selectionMenu from "lib/selectionMenu";
 import appSettings from "lib/settings";
 import FileBrowser from "pages/fileBrowser";
 import formatterSettings from "settings/formatterSettings";
-import sidebarApps from "sidebarApps";
 import ThemeBuilder from "theme/builder";
 import themes from "theme/list";
-import Url from "utils/Url";
 import Color from "utils/color";
-import encodings from "utils/encodings";
+import encodings, { decode, encode } from "utils/encodings";
 import helpers from "utils/helpers";
 import KeyboardEvent from "utils/keyboardEvent";
+import Url from "utils/Url";
 import constants from "./constants";
-
-import { addMode, removeMode } from "ace/modelist";
-import { addIntentHandler, removeIntentHandler } from "handlers/intent";
-import { addedFolder } from "lib/openFolder";
-import { decode, encode } from "utils/encodings";
 
 export default class Acode {
 	#modules = {};
@@ -96,6 +97,28 @@ export default class Acode {
 			removeHandler: removeIntentHandler,
 		};
 
+		const terminalModule = {
+			create: (options) => TerminalManager.createTerminal(options),
+			createLocal: (options) => TerminalManager.createLocalTerminal(options),
+			createServer: (options) => TerminalManager.createServerTerminal(options),
+			get: (id) => TerminalManager.getTerminal(id),
+			getAll: () => TerminalManager.getAllTerminals(),
+			write: (id, data) => this.#secureTerminalWrite(id, data),
+			clear: (id) => TerminalManager.clearTerminal(id),
+			close: (id) => TerminalManager.closeTerminal(id),
+			themes: {
+				register: (name, theme, pluginId) =>
+					TerminalThemeManager.registerTheme(name, theme, pluginId),
+				unregister: (name, pluginId) =>
+					TerminalThemeManager.unregisterTheme(name, pluginId),
+				get: (name) => TerminalThemeManager.getTheme(name),
+				getAll: () => TerminalThemeManager.getAllThemes(),
+				getNames: () => TerminalThemeManager.getThemeNames(),
+				createVariant: (baseName, overrides) =>
+					TerminalThemeManager.createVariant(baseName, overrides),
+			},
+		};
+
 		this.define("Url", Url);
 		this.define("page", Page);
 		this.define("Color", Color);
@@ -134,8 +157,104 @@ export default class Acode {
 		this.define("themeBuilder", ThemeBuilder);
 		this.define("selectionMenu", selectionMenu);
 		this.define("sidebarApps", sidebarAppsModule);
+		this.define("terminal", terminalModule);
 		this.define("createKeyboardEvent", KeyboardEvent);
 		this.define("toInternalUrl", helpers.toInternalUri);
+	}
+
+	/**
+	 * Secure terminal write with command validation
+	 * Prevents execution of malicious or dangerous commands through plugin API
+	 * @param {string} id - Terminal ID
+	 * @param {string} data - Data to write
+	 */
+	#secureTerminalWrite(id, data) {
+		if (typeof data !== "string") {
+			console.warn("Terminal write data must be a string");
+			return;
+		}
+
+		// List of potentially dangerous commands/patterns to block
+		const dangerousPatterns = [
+			// System commands that can cause damage
+			/^\s*rm\s+-rf?\s+\/[^\r\n]*[\r\n]?$/m,
+			/^\s*rm\s+-rf?\s+\*[^\r\n]*[\r\n]?$/m,
+			/^\s*rm\s+-rf?\s+~[^\r\n]*[\r\n]?$/m,
+			/^\s*mkfs\.[^\r\n]*[\r\n]?$/m,
+			/^\s*dd\s+if=\/[^\r\n]*[\r\n]?$/m,
+			/^\s*:(){ :|:& };:[^\r\n]*[\r\n]?$/m, // Fork bomb
+			/^\s*sudo\s+dd\s+if=\/[^\r\n]*[\r\n]?$/m,
+			/^\s*sudo\s+rm\s+-rf?\s+\/[^\r\n]*[\r\n]?$/m,
+			/^\s*curl\s+[^\r\n]*\|\s*sh[^\r\n]*[\r\n]?$/m,
+			/^\s*wget\s+[^\r\n]*\|\s*sh[^\r\n]*[\r\n]?$/m,
+			/^\s*bash\s+<\s*\([^\r\n]*[\r\n]?$/m,
+			/^\s*sh\s+<\s*\([^\r\n]*[\r\n]?$/m,
+
+			// Network-based attacks
+			/^\s*nc\s+-l\s+-p\s+\d+[^\r\n]*[\r\n]?$/m,
+			/^\s*ncat\s+-l\s+-p\s+\d+[^\r\n]*[\r\n]?$/m,
+			/^\s*python\s+.*SimpleHTTPServer[^\r\n]*[\r\n]?$/m,
+			/^\s*python\s+.*http\.server[^\r\n]*[\r\n]?$/m,
+
+			// Process manipulation
+			/^\s*kill\s+-9\s+1\s*[\r\n]?$/m,
+			/^\s*killall\s+-9\s+\*[^\r\n]*[\r\n]?$/m,
+
+			// File system manipulation
+			/^\s*chmod\s+777\s+\/[^\r\n]*[\r\n]?$/m,
+			/^\s*chown\s+[^\s]+\s+\/[^\r\n]*[\r\n]?$/m,
+
+			// Sensitive file access attempts
+			/^\s*cat\s+\/etc\/passwd[^\r\n]*[\r\n]?$/m,
+			/^\s*cat\s+\/etc\/shadow[^\r\n]*[\r\n]?$/m,
+			/^\s*cat\s+\/root\/[^\r\n]*[\r\n]?$/m,
+
+			// Only block null bytes
+			/\x00/g,
+		];
+
+		// Check for dangerous patterns
+		for (const pattern of dangerousPatterns) {
+			if (pattern.test(data)) {
+				console.warn(
+					`Blocked potentially dangerous terminal command: ${data.substring(0, 50)}...`,
+				);
+				toast("Potentially dangerous command blocked for security", 3000);
+				return;
+			}
+		}
+
+		// Additional checks for suspicious character sequences
+		if (data.includes("$(") && data.includes(")")) {
+			const commandSubstitution = /\$\([^)]*\)/g;
+			const matches = data.match(commandSubstitution);
+			if (matches) {
+				for (const match of matches) {
+					// Check if command substitution contains dangerous commands
+					for (const pattern of dangerousPatterns) {
+						if (pattern.test(match)) {
+							console.warn(
+								`Blocked command substitution with dangerous content: ${match}`,
+							);
+							toast("Command substitution blocked for security", 3000);
+							return;
+						}
+					}
+				}
+			}
+		}
+
+		// Sanitize data length to prevent memory exhaustion
+		const maxLength = 64 * 1024; // 64KB max per write
+		if (data.length > maxLength) {
+			console.warn(
+				`Terminal write data truncated - exceeded ${maxLength} characters`,
+			);
+			data = data.substring(0, maxLength) + "\n[Data truncated for security]\n";
+		}
+
+		// If all security checks pass, proceed with writing
+		return TerminalManager.writeToTerminal(id, data);
 	}
 
 	/**
@@ -154,9 +273,8 @@ export default class Acode {
 	exec(key, val) {
 		if (key in commands) {
 			return commands[key](val);
-		} else {
-			return false;
 		}
+		return false;
 	}
 
 	/**
@@ -166,67 +284,117 @@ export default class Acode {
 	 * @returns {Promise<void>}
 	 */
 	installPlugin(pluginId, installerPluginName) {
-		return new Promise(async (resolve, reject) => {
-			try {
-				const confirmation = await confirm(
-					strings["install"],
-					`Do you want to install plugin '${pluginId}'${installerPluginName ? ` requested by ${installerPluginName}` : ""}?`,
-				);
-
-				if (!confirmation) {
-					reject(new Error("User cancelled installation"));
-					return;
-				}
-
-				const isPluginExists = await fsOperation(
-					Url.join(PLUGIN_DIR, pluginId),
-				).exists();
-				if (isPluginExists) {
-					reject(new Error("PLugin already installed"));
-					return;
-				}
-
-				let purchaseToken = null;
-
-				const pluginUrl = Url.join(constants.API_BASE, `plugin/${pluginId}`);
-				const remotePlugin = await fsOperation(pluginUrl)
-					.readFile("json")
-					.catch(() => {
-						reject(new Error("Failed to fetch plugin details"));
-						return null;
-					});
-
-				if (remotePlugin) {
-					if (Number.parseFloat(remotePlugin.price) > 0) {
-						try {
-							const [product] = await helpers.promisify(iap.getProducts, [
-								remotePlugin.sku,
-							]);
-							if (product) {
-								async function getPurchase(sku) {
-									const purchases = await helpers.promisify(iap.getPurchases);
-									const purchase = purchases.find((p) =>
-										p.productIds.includes(sku),
-									);
-									return purchase;
-								}
-								const purchase = await getPurchase(product.productId);
-								purchaseToken = purchase?.purchaseToken;
-							}
-						} catch (error) {
-							helpers.error(error);
-							reject(new Error("Failed to validate purchase"));
-							return;
-						}
+		return new Promise((resolve, reject) => {
+			confirm(
+				strings.install,
+				`Do you want to install plugin '${pluginId}'${installerPluginName ? ` requested by ${installerPluginName}` : ""}?`,
+			)
+				.then((confirmation) => {
+					if (!confirmation) {
+						reject(new Error("User cancelled installation"));
+						return;
 					}
-				}
 
-				const { default: installPlugin } = await import("lib/installPlugin");
-				await installPlugin(pluginId, remotePlugin.name, purchaseToken);
-				resolve();
-			} catch (error) {
-				reject(error);
-			}
+					fsOperation(Url.join(PLUGIN_DIR, pluginId))
+						.exists()
+						.then((isPluginExists) => {
+							if (isPluginExists) {
+								reject(new Error("Plugin already installed"));
+								return;
+							}
+
+							let purchaseToken;
+							let product;
+							const pluginUrl = Url.join(
+								constants.API_BASE,
+								`plugin/${pluginId}`,
+							);
+							fsOperation(pluginUrl)
+								.readFile("json")
+								.catch(() => {
+									reject(new Error("Failed to fetch plugin details"));
+									return null;
+								})
+								.then((remotePlugin) => {
+									if (remotePlugin) {
+										const isPaid = remotePlugin.price > 0;
+										helpers
+											.promisify(iap.getProducts, [remotePlugin.sku])
+											.then((products) => {
+												[product] = products;
+												if (product) {
+													return getPurchase(product.productId);
+												}
+												return null;
+											})
+											.then((purchase) => {
+												purchaseToken = purchase?.purchaseToken;
+
+												if (isPaid && !purchaseToken) {
+													if (!product) throw new Error("Product not found");
+													return helpers.checkAPIStatus().then((apiStatus) => {
+														if (!apiStatus) {
+															alert(strings.error, strings.api_error);
+															return;
+														}
+
+														iap.setPurchaseUpdatedListener(
+															...purchaseListener(onpurchase, onerror),
+														);
+														return helpers.promisify(
+															iap.purchase,
+															product.productId,
+														);
+													});
+												}
+											})
+											.then(() => {
+												import("lib/installPlugin").then(
+													({ default: installPlugin }) => {
+														installPlugin(
+															pluginId,
+															remotePlugin.name,
+															purchaseToken,
+														).then(() => {
+															resolve();
+														});
+													},
+												);
+											});
+
+										async function onpurchase(e) {
+											const purchase = await getPurchase(product.productId);
+											await ajax.post(
+												Url.join(constants.API_BASE, "plugin/order"),
+												{
+													data: {
+														id: remotePlugin.id,
+														token: purchase?.purchaseToken,
+														package: BuildInfo.packageName,
+													},
+												},
+											);
+											purchaseToken = purchase?.purchaseToken;
+										}
+
+										async function onerror(error) {
+											throw error;
+										}
+									}
+								});
+
+							async function getPurchase(sku) {
+								const purchases = await helpers.promisify(iap.getPurchases);
+								const purchase = purchases.find((p) =>
+									p.productIds.includes(sku),
+								);
+								return purchase;
+							}
+						});
+				})
+				.catch((error) => {
+					reject(error);
+				});
 		});
 	}
 
@@ -235,6 +403,7 @@ export default class Acode {
 		if (numFiles) {
 			return strings["unsaved files close app"];
 		}
+		return null;
 	}
 
 	setLoadingMessage(message) {
@@ -296,11 +465,11 @@ export default class Acode {
 			(formatter) => formatter.id !== id,
 		);
 		const { formatter } = appSettings.value;
-		Object.keys(formatter).forEach((mode) => {
+		for (const mode of Object.keys(formatter)) {
 			if (formatter[mode] === id) {
 				delete formatter[mode];
 			}
-		});
+		}
 		appSettings.update(false);
 	}
 
@@ -316,7 +485,8 @@ export default class Acode {
 			formatterSettings(name);
 			this.#afterSelectFormatter(name);
 			return;
-		} else if (!formatter && !selectIfNull) {
+		}
+		if (!formatter && !selectIfNull) {
 			toast(strings["please select a formatter"]);
 		}
 	}
@@ -355,12 +525,12 @@ export default class Acode {
 	 */
 	getFormatterFor(extensions) {
 		const options = [[null, strings.none]];
-		this.formatters.forEach(({ id, name, exts }) => {
+		for (const { id, name, exts } of this.formatters) {
 			const supports = exts.some((ext) => extensions.includes(ext));
 			if (supports || exts.includes("*")) {
 				options.push([id, name]);
 			}
-		});
+		}
 		return options;
 	}
 
@@ -414,8 +584,8 @@ export default class Acode {
 	}
 
 	async toInternalUrl(url) {
-		url = await helpers.toInternalUri(url);
-		return url;
+		const internalUrl = await helpers.toInternalUri(url);
+		return internalUrl;
 	}
 	/**
 	 * Push a notification
@@ -441,5 +611,24 @@ export default class Acode {
 			action,
 			type,
 		});
+	}
+
+	/**
+	 * Register a custom file type handler
+	 * @param {string} id Unique identifier for the handler
+	 * @param {Object} options Handler configuration
+	 * @param {string[]} options.extensions File extensions to handle (without dots)
+	 * @param {function} options.handleFile Function that handles the file opening
+	 */
+	registerFileHandler(id, options) {
+		fileTypeHandler.registerFileHandler(id, options);
+	}
+
+	/**
+	 * Unregister a file type handler
+	 * @param {string} id The handler id to remove
+	 */
+	unregisterFileHandler(id) {
+		fileTypeHandler.unregisterFileHandler(id);
 	}
 }
